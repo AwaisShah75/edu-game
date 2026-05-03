@@ -42,7 +42,7 @@ export async function POST(req) {
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: [
         { text: prompt },
         {
@@ -54,13 +54,12 @@ export async function POST(req) {
       ],
       config: {
         temperature: 0.7,
-        responseMimeType: "application/json"
       }
     });
 
     let questions = [];
     try {
-      const responseText = response.text || "";
+      const responseText = response.text ? response.text() : (response.candidates?.[0]?.content?.parts?.[0]?.text || "");
       const cleanedText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
       questions = JSON.parse(cleanedText);
     } catch (parseError) {
