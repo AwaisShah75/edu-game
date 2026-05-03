@@ -47,12 +47,17 @@ export async function POST(req) {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [
-        { text: prompt },
         {
-          inlineData: {
-            data: base64Data,
-            mimeType: mimeType
-          }
+          role: "user",
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType
+              }
+            }
+          ]
         }
       ],
       config: {
