@@ -67,9 +67,55 @@ export default function Home() {
     }
 
     if (fullText.trim().length < 50) {
-      throw new Error("This PDF appears to be image-based (scanned). Please use the 📸 camera button to take a photo of the page instead.");
+      // PDF is image-based — render pages as canvas and return as image blob
+      setLoadingMsg("Rendering PDF as image...");
+      return null; // signals caller to use image rendering fallback
     }
     return fullText.trim();
+  };
+
+  // Render PDF pages as a single image (for scanned/image-based PDFs)
+  const renderPDFAsImage = async (pdfFile) => {
+    setLoadingMsg("Rendering scanned PDF...");
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+    const arrayBuffer = await pdfFile.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pagesToRender = Math.min(pdf.numPages, 3); // max 3 pages
+
+    // Render all pages onto one tall canvas
+    const scale = 1.5;
+    const pageCanvases = [];
+    let totalHeight = 0;
+    let maxWidth = 0;
+
+    for (let i = 1; i <= pagesToRender; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      pageCanvases.push(canvas);
+      totalHeight += viewport.height;
+      maxWidth = Math.max(maxWidth, viewport.width);
+    }
+
+    // Merge all pages into one canvas
+    const merged = document.createElement("canvas");
+    merged.width = maxWidth;
+    merged.height = totalHeight;
+    const ctx = merged.getContext("2d");
+    let y = 0;
+    for (const c of pageCanvases) {
+      ctx.drawImage(c, 0, y);
+      y += c.height;
+    }
+
+    return new Promise((resolve) => {
+      merged.toBlob((blob) => resolve(blob), "image/jpeg", 0.75);
+    });
   };
 
   // Compress image to stay under Vercel's 4.5MB limit
@@ -114,10 +160,18 @@ export default function Home() {
       formData.append("questionCount", questionCount);
 
       if (file.type === "application/pdf") {
-        // Extract text client-side — no file upload to Vercel!
+        // Try to extract text first
         const text = await extractTextFromPDF(file);
-        if (!text.trim()) throw new Error("Could not extract text from PDF. Try an image instead.");
-        formData.append("pdfText", text);
+        if (text) {
+          // Digital PDF — send extracted text (no size limit issues)
+          formData.append("pdfText", text);
+        } else {
+          // Scanned PDF — render as image and send that
+          setLoadingMsg("Processing scanned PDF...");
+          const imageBlob = await renderPDFAsImage(file);
+          const compressed = await compressImage(imageBlob);
+          formData.append("file", compressed, "pdf-image.jpg");
+        }
       } else {
         // Compress image before sending
         setLoadingMsg("Compressing image...");
