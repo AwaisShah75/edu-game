@@ -70,11 +70,15 @@ export default function Home() {
 
       const data = await response.json();
       
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate questions");
+      }
+      
       sessionStorage.setItem("eduplay_questions", JSON.stringify(data.questions));
       router.push("/editor");
     } catch (error) {
       console.error(error);
-      alert("Error generating questions. Please try again.");
+      alert("Error: " + error.message);
       setIsLoading(false);
     }
   };

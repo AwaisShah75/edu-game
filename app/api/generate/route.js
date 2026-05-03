@@ -73,6 +73,9 @@ export async function POST(req) {
     return NextResponse.json({ questions });
   } catch (error) {
     console.error("API Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ 
+      error: error?.message || "Internal Server Error",
+      details: error?.toString() || ""
+    }, { status: 500 });
   }
 }
