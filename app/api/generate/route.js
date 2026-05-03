@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 
+// Extend Vercel serverless function timeout to 60 seconds (max for Hobby plan)
+export const maxDuration = 60;
+
 export async function POST(req) {
   try {
     const formData = await req.formData();
