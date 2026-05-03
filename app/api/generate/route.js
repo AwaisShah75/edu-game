@@ -19,8 +19,16 @@ export async function POST(req) {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     const prompt = `
-      You are an expert teacher creating questions for a classroom smartboard game.
-      Read the provided content and generate exactly ${questionCount} multiple-choice questions.
+      You are an expert teacher creating quiz questions for a classroom smartboard game.
+      Below is educational content extracted from a student's textbook or document.
+      
+      Generate exactly ${questionCount} multiple-choice questions based ONLY on the SUBJECT MATTER and FACTS in the content.
+      
+      STRICT RULES:
+      - NEVER ask questions about page numbers, document structure, formatting, or how the text is organized.
+      - ONLY ask about the actual educational topic, facts, concepts, dates, names, events, or definitions found in the content.
+      - If the content is about history, ask about historical events. If science, ask about scientific concepts. If math, ask about formulas or concepts.
+      - Each question must test real knowledge a student should know from this material.
       
       Difficulty Level: ${difficulty}. 
       - If Easy: Very short simple questions. One answer is clearly correct. Good for Grade 1-2.

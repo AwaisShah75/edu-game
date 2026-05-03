@@ -54,10 +54,22 @@ export default function Home() {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item) => item.str).join(" ");
-      fullText += `\n--- Page ${i} ---\n${pageText}`;
+      // Only include actual text strings, filter out single characters and numbers (page numbers, etc.)
+      const pageText = textContent.items
+        .map((item) => item.str)
+        .filter((s) => s.trim().length > 1) // skip lone characters
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (pageText.length > 20) { // only include pages with real content
+        fullText += pageText + "\n";
+      }
     }
-    return fullText;
+
+    if (fullText.trim().length < 50) {
+      throw new Error("This PDF appears to be image-based (scanned). Please use the 📸 camera button to take a photo of the page instead.");
+    }
+    return fullText.trim();
   };
 
   // Compress image to stay under Vercel's 4.5MB limit
