@@ -57,14 +57,29 @@ export async function POST(req) {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [{ role: "user", parts }],
-      config: { temperature: 0.7 }
+      config: { 
+        temperature: 0.7,
+        responseMimeType: "application/json"
+      }
     });
 
     let questions = [];
     try {
-      const responseText = response.text ? response.text() : (response.candidates?.[0]?.content?.parts?.[0]?.text || "");
-      const cleanedText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
-      questions = JSON.parse(cleanedText);
+      const responseText = typeof response.text === "function" 
+        ? response.text() 
+        : (response.text || response.candidates?.[0]?.content?.parts?.[0]?.text || "");
+      
+      // Strip markdown code fences if present
+      let cleaned = responseText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      
+      // Find first JSON array in the response (handles thinking tokens)
+      const arrayStart = cleaned.indexOf("[");
+      const arrayEnd = cleaned.lastIndexOf("]");
+      if (arrayStart !== -1 && arrayEnd !== -1) {
+        cleaned = cleaned.slice(arrayStart, arrayEnd + 1);
+      }
+      
+      questions = JSON.parse(cleaned);
     } catch (parseError) {
       console.error("Failed to parse Gemini response:", parseError);
       return NextResponse.json({ error: "Invalid AI response format" }, { status: 500 });
