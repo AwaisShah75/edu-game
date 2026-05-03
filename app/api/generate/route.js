@@ -7,26 +7,20 @@ export const maxDuration = 60;
 export async function POST(req) {
   try {
     const formData = await req.formData();
-    const file = formData.get("file");
+    const pdfText = formData.get("pdfText");    // text extracted client-side from PDF
+    const file = formData.get("file");           // compressed image (if image upload)
     const difficulty = formData.get("difficulty");
     const questionCount = formData.get("questionCount") || "10";
 
-    if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    if (!pdfText && !file) {
+      return NextResponse.json({ error: "No content provided" }, { status: 400 });
     }
 
-    // Convert Web File to ArrayBuffer, then base64 for Gemini
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Data = buffer.toString("base64");
-    const mimeType = file.type || "application/pdf"; // Support both images and pdfs
-
-    // Initialize Gemini API
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     const prompt = `
       You are an expert teacher creating questions for a classroom smartboard game.
-      Read the attached document/image and generate exactly ${questionCount} multiple-choice questions.
+      Read the provided content and generate exactly ${questionCount} multiple-choice questions.
       
       Difficulty Level: ${difficulty}. 
       - If Easy: Very short simple questions. One answer is clearly correct. Good for Grade 1-2.
@@ -44,25 +38,26 @@ export async function POST(req) {
       }
     `;
 
+    let parts = [{ text: prompt }];
+
+    if (pdfText) {
+      // PDF: just send the extracted text — no file payload!
+      parts.push({ text: `\n\nDocument Content:\n${pdfText}` });
+    } else {
+      // Image: send as base64 inline data
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const base64Data = buffer.toString("base64");
+      const mimeType = file.type || "image/jpeg";
+      parts.push({
+        inlineData: { data: base64Data, mimeType }
+      });
+    }
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                data: base64Data,
-                mimeType: mimeType
-              }
-            }
-          ]
-        }
-      ],
-      config: {
-        temperature: 0.7,
-      }
+      contents: [{ role: "user", parts }],
+      config: { temperature: 0.7 }
     });
 
     let questions = [];
@@ -71,7 +66,7 @@ export async function POST(req) {
       const cleanedText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
       questions = JSON.parse(cleanedText);
     } catch (parseError) {
-      console.error("Failed to parse Gemini response as JSON:", response.text);
+      console.error("Failed to parse Gemini response:", parseError);
       return NextResponse.json({ error: "Invalid AI response format" }, { status: 500 });
     }
 
